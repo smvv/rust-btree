@@ -201,7 +201,10 @@ fn main() {
     assert!(s.is_empty());
 
     assert!(s.insert(1, foo));
+    assert!(!s.is_empty());
+
     assert!(s.insert(42, bar));
+    assert!(!s.is_empty());
 
     io::println(fmt!("find(1) -> %?", s.find(1)));
     io::println(fmt!("find(42) -> %?", s.find(42)));
@@ -209,9 +212,12 @@ fn main() {
     assert_eq!(s.find(1).unwrap(), &foo);
     assert_eq!(s.find(42).unwrap(), &bar);
 
-    assert!(!s.is_empty());
     s.clear();
+
     assert!(s.is_empty());
+
+    assert_eq!(s.find(1), None);
+    assert_eq!(s.find(42), None);
 
     io::println("Done with btree!");
 }

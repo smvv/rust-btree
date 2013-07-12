@@ -40,63 +40,6 @@ enum TreeItem<K, V> {
     TreeLeaf { value: V },
 }
 
-impl<K, V> Container for BTree<K, V> {
-    /// Return the number of nodes or values in use in the b-tree node.
-    #[inline]
-    fn len(&self) -> uint { self.used }
-
-    /// Return true if the b-tree node contains no nodes or values.
-    #[inline]
-    fn is_empty(&self) -> bool { self.nodes.head().is_none() }
-}
-
-impl<K, V> Mutable for BTree<K, V> {
-    /// Clear the b-tree, removing all nodes.
-    fn clear(&mut self) {
-        for self.nodes.mut_iter().advance |node| {
-            *node = None;
-        }
-
-        self.used = 0;
-    }
-}
-
-impl<K: ToStr, V> ToStr for BTree<K, V> {
-    fn to_str(&self) -> ~str { to_str(self, 0) }
-}
-
-fn to_str<K: ToStr, V>(tree: &BTree<K, V>, indent: uint) -> ~str {
-    let buf : ~[~str] = tree.nodes.iter().enumerate().transform(|(i, x)| {
-        if i < tree.used {
-            let key = match tree.keys[i] {
-                Some(ref key) => key,
-                None => fail!("unreachable path"),
-            };
-
-            fmt!("%s%s", "\t".repeat(indent), match *x {
-                Some(TreeNode { value: ref tree }) => {
-                    ~"Node(key=" + key.to_str() + ")\n"
-                    + to_str::<K, V>(&**tree, indent + 1)
-                }
-                Some(TreeLeaf { value: _ }) => {
-                    ~"Leaf(key=" + key.to_str() + ")"
-                }
-                None => ~"None",
-            })
-        } else {
-            fmt!("%s%s", "\t".repeat(indent), match *x {
-                Some(TreeNode { value: ref tree }) => {
-                    ~"Node(key=None)\n" + to_str::<K, V>(&**tree, indent + 1)
-                }
-                Some(TreeLeaf { value: _ }) => ~"Leaf(key=None)",
-                None => ~"None",
-            })
-        }
-    }).collect();
-
-    buf.connect("\n")
-}
-
 impl<K: Eq + Ord + Copy, V> BTree<K, V> {
     pub fn new() -> ~BTree<K, V> {
         // TODO: once https://github.com/mozilla/rust/issues/5244 is fixed,
@@ -318,6 +261,63 @@ fn insert_node<K, V>(tree: &mut BTree<K, V>, pos: uint,
     }
 
     util::replace(&mut tree.nodes[pos], node);
+}
+
+impl<K, V> Container for BTree<K, V> {
+    /// Return the number of nodes or values in use in the b-tree node.
+    #[inline]
+    fn len(&self) -> uint { self.used }
+
+    /// Return true if the b-tree node contains no nodes or values.
+    #[inline]
+    fn is_empty(&self) -> bool { self.nodes.head().is_none() }
+}
+
+impl<K, V> Mutable for BTree<K, V> {
+    /// Clear the b-tree, removing all nodes.
+    fn clear(&mut self) {
+        for self.nodes.mut_iter().advance |node| {
+            *node = None;
+        }
+
+        self.used = 0;
+    }
+}
+
+impl<K: ToStr, V> ToStr for BTree<K, V> {
+    fn to_str(&self) -> ~str { to_str(self, 0) }
+}
+
+fn to_str<K: ToStr, V>(tree: &BTree<K, V>, indent: uint) -> ~str {
+    let buf : ~[~str] = tree.nodes.iter().enumerate().transform(|(i, x)| {
+        if i < tree.used {
+            let key = match tree.keys[i] {
+                Some(ref key) => key,
+                None => fail!("unreachable path"),
+            };
+
+            fmt!("%s%s", "\t".repeat(indent), match *x {
+                Some(TreeNode { value: ref tree }) => {
+                    ~"Node(key=" + key.to_str() + ")\n"
+                    + to_str::<K, V>(&**tree, indent + 1)
+                }
+                Some(TreeLeaf { value: _ }) => {
+                    ~"Leaf(key=" + key.to_str() + ")"
+                }
+                None => ~"None",
+            })
+        } else {
+            fmt!("%s%s", "\t".repeat(indent), match *x {
+                Some(TreeNode { value: ref tree }) => {
+                    ~"Node(key=None)\n" + to_str::<K, V>(&**tree, indent + 1)
+                }
+                Some(TreeLeaf { value: _ }) => ~"Leaf(key=None)",
+                None => ~"None",
+            })
+        }
+    }).collect();
+
+    buf.connect("\n")
 }
 
 #[cfg(test)]

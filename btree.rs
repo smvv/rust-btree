@@ -38,7 +38,7 @@ enum TreeItem<K, V> {
     TreeLeaf { key: K, value: V },
 }
 
-impl<K: Eq + Ord, V> Container for BTree<K, V> {
+impl<K, V> Container for BTree<K, V> {
     /// Return the number of nodes or values in use in the b-tree node.
     #[inline]
     fn len(&self) -> uint { self.used }
@@ -48,23 +48,36 @@ impl<K: Eq + Ord, V> Container for BTree<K, V> {
     fn is_empty(&self) -> bool { self.nodes.head().is_none() }
 }
 
-impl<K: TotalOrd, V> Mutable for BTree<K, V> {
+impl<K, V> Mutable for BTree<K, V> {
     /// Clear the b-tree, removing all nodes.
     fn clear(&mut self) {
         for self.nodes.mut_iter().advance |node| {
-            match *node {
-                None => {
-                    break;
-                }
-                _ => {
-                    *node = None;
-                    self.used -= 1;
-                }
-            }
+            *node = None;
         }
 
-        assert!(self.used == 0);
+        self.used = 0;
     }
+}
+
+impl<K: ToStr, V> ToStr for BTree<K, V> {
+    fn to_str(&self) -> ~str { to_str(self, 0) }
+}
+
+fn to_str<K: ToStr, V>(tree: &BTree<K, V>, indent: uint) -> ~str {
+    let buf : ~[~str] = tree.nodes.iter().transform(|x| {
+        fmt!("%s%s", "\t".repeat(indent), match *x {
+            Some(TreeNode { key: ref k, value: ref tree }) => {
+                ~"Node(key=" + k.to_str() + ")\n"
+                + to_str::<K, V>(&**tree, indent + 1)
+            }
+            Some(TreeLeaf { key: ref k, value: _ }) => {
+                "Leaf(key=" + k.to_str() + ")"
+            }
+            None => ~"None",
+        })
+    }).collect();
+
+    buf.connect("\n")
 }
 
 impl<K: Eq + Ord, V> BTree<K, V> {

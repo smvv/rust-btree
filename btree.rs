@@ -98,10 +98,10 @@ impl<K: Eq + Ord, V> BTree<K, V> {
             }
 
             match current.nodes[pos.unwrap()] {
-                Some(TreeNode { key: ref k, value: ref tree }) => {
+                Some(TreeNode { key: _, value: ref tree }) => {
                     current = &'a **tree;
                 }
-                Some(TreeLeaf { key: ref k, value: ref value }) => {
+                Some(TreeLeaf { key: _, value: ref value }) => {
                     return Some(value);
                 }
                 None => return None

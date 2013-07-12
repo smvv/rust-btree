@@ -165,11 +165,9 @@ fn insert<K: Eq + Ord, V>(tree: &mut BTree<K, V>, key: K, value: V) -> bool {
 
 fn insert_node<K: Eq + Ord, V>(tree: &mut BTree<K, V>, pos: uint,
                                node: Option<TreeItem<K, V>>) -> bool {
-    tree.used += 1;
-
     debug!("insert node %? at pos: %u", node, pos);
 
-    let mut j = tree.nodes.len() - 1;
+    let mut j = tree.used;
     let new_key = match tree.nodes[pos] {
         None => true,
         Some(_) => {
@@ -198,6 +196,8 @@ fn insert_node<K: Eq + Ord, V>(tree: &mut BTree<K, V>, pos: uint,
     };
 
     util::replace(&mut tree.nodes[pos], node);
+
+    tree.used += 1;
 
     debug!("tree nodes: %?", tree.nodes);
 

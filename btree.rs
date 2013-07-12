@@ -147,7 +147,7 @@ fn insert<'r, K: Eq + Ord + Copy, V>(tree: &'r mut BTree<K, V>, key: K,
 
     // If the node contains fewer than the maximum legal number of
     // elements, then there is room for the new element.
-    if tree.used < BTREE_DEGREE - 1 {
+    if tree.used < tree.capacity() {
         // Determine the position for the new node based on the existing keys.
         // If None is found, use that position. If the key of the new node is
         // least than or equal to the tree node, use that position.

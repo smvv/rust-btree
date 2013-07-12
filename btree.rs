@@ -81,34 +81,35 @@ impl<K: Eq + Ord, V> BTree<K, V> {
 
     /// Return a reference to the value corresponding to the key.
     pub fn find<'a> (&'a self, key: K) -> Option<&'a V> {
-        let mut pos = 0;
-        let mut current: &'a Option<TreeItem<K, V>> = &self.nodes[pos];
+        let mut current = self;
 
         loop {
-            match *current {
-                Some(TreeNode { key: ref k, value: _ }) => {
-                    if key < *k {
-                        pos += 1;
-                    } else if key == *k {
-                        fail!("TODO: key == *k");
-                        //return Some(tree);
-                    } else {
-                        pos += 1;
+            let pos = current.nodes.iter().position(|x| {
+                match *x {
+                    // TODO: If x == None, break
+                    None => false,
+                    Some(TreeNode { key: ref k, value: _ }) => key <= *k,
+                    Some(TreeLeaf { key: ref k, value: _ }) => key == *k,
+                }
+            });
+
+            if pos.is_none() {
+                return None;
+            }
+
+            match current.nodes[pos.unwrap()] {
+                Some(TreeNode { key: ref k, value: ref tree }) => {
+                    if key <= *k {
+                        current = &'a **tree;
                     }
                 }
                 Some(TreeLeaf { key: ref k, value: ref value }) => {
-                    if key < *k {
-                        pos += 1;
-                    } else if key == *k {
+                    if key == *k {
                         return Some(value);
-                    } else {
-                        pos += 1;
                     }
                 }
                 None => return None
             }
-
-            current = &self.nodes[pos];
         }
     }
 

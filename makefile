@@ -1,15 +1,10 @@
-#all: libbtree.so
-
-#all: btree_main
-#btree_main: libbtree.so
-
 all: btree
 
 test: all
 test: RUSTFLAGS += --test
 
 clean:
-	rm -f libbtree.so
+	rm -f btree
 
 RUSTC := rustc
 RUSTFLAGS := -O -L.

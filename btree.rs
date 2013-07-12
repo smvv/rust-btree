@@ -18,9 +18,6 @@
 //! assert_eq!(t.find(42).unwrap(), &bar);
 //! ~~~
 
-//#[link(name="btree", vers="0.1pre",
-//       uuid="136fafb0-e4e0-11e2-a28f-0800200c9a66")];
-
 use std::util;
 use std::uint;
 
@@ -147,8 +144,6 @@ fn insert<'r, K: Eq + Ord + Copy, V>(tree: &'r mut BTree<K, V>, key: K,
         Some(TreeNode { value: _ }) =>
             fail!("unreachable path: tree.nodes[0] == TreeNode"),
     }
-
-    //Some(TreeLeaf { value: _ }) => find_leaf_pos(tree, &key),
 
     // If the node contains fewer than the maximum legal number of
     // elements, then there is room for the new element.

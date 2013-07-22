@@ -6,6 +6,8 @@
 //! Basic example:
 //!
 //! ~~~ rust
+//! use std::btree::BTree;
+//!
 //! let foo = "foo";
 //! let bar = "bar";
 //!
@@ -19,17 +21,20 @@
 //! ~~~
 
 use std::util;
-use std::uint;
 
-// The number of keys is chosen to vary between d and 2d, where d is the
-// minimum number of keys and d+1 is the minimum degree (branching factor) of
-// the tree. In this case, d = 2 which results in degree = 5.
-pub static BTREE_DEGREE : uint = 5;
+/// The number of keys a node can contain is between a lower and upper bound.
+/// Every node other than the root must have at least `t - 1` keys and `t`
+/// children. Every node can contain at most `2t - 1` keys and `2t` children.
+/// The fixed integer `t` (where `t >= 2`) is called the *minimum degree* of
+/// the B-tree.
+pub static BTREE_MIN_DEGREE : uint = 20;
+pub static BTREE_KEYS_LBOUND : uint = BTREE_MIN_DEGREE - 1;
+pub static BTREE_KEYS_UBOUND : uint = 2 * BTREE_MIN_DEGREE - 1;
 
 pub struct BTree<K, V> {
     priv used: uint,
-    priv keys: [Option<K>, ..BTREE_DEGREE - 1],
-    priv nodes: [Option<TreeItem<K, V>>, ..BTREE_DEGREE],
+    priv keys: [Option<K>, ..BTREE_KEYS_UBOUND],
+    priv nodes: [Option<TreeItem<K, V>>, ..BTREE_KEYS_UBOUND + 1],
 }
 
 pub enum TreeItem<K, V> {
@@ -37,18 +42,34 @@ pub enum TreeItem<K, V> {
     TreeLeaf { value: V },
 }
 
-impl<K: Eq + Ord, V : Eq> BTree<K, V> {
+impl<K: Eq + Ord + ToStr, V : Eq> BTree<K, V> {
     pub fn new() -> ~BTree<K, V> {
         // TODO: once https://github.com/mozilla/rust/issues/5244 is fixed,
         // use the following statement:
-        //~BTree { used: 0, key: [None, ..BTREE_DEGREE - 1],
-        //         nodes: [None, ..BTREE_DEGREE] }
-        ~BTree { used: 0, keys: [None, None, None, None],
-                 nodes: [None, None, None, None, None] }
+        //~BTree { used: 0, key: [None, ..BTREE_KEYS_UBOUND],
+        //         nodes: [None, ..BTREE_KEYS_UBOUND + 1] }
+
+        // NB for executing the commented tests below, use this statement:
+        //~BTree { used: 0, keys: [None, None, None],
+        //         nodes: [None, None, None, None] }
+
+        ~BTree { used: 0, keys: [
+                None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None,
+            ],
+            nodes: [
+                None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None,
+            ]
+        }
     }
 
     /// Return the number of keys that can be stored in the b-tree node.
-    pub fn capacity(&self) -> uint { BTREE_DEGREE - 1 }
+    pub fn capacity(&self) -> uint { BTREE_KEYS_UBOUND }
 
     /// Return a reference to the value corresponding to the key.
     pub fn find<'a>(&'a self, key: K) -> Option<&'a V> {
@@ -56,8 +77,8 @@ impl<K: Eq + Ord, V : Eq> BTree<K, V> {
 
         loop {
             let pos = match current.nodes[0] {
-                Some(TreeNode { value: _ }) => find_node_pos(current, &key),
-                Some(TreeLeaf { value: _ }) => find_leaf_pos(current, &key),
+                Some(TreeNode { value: _ }) |
+                Some(TreeLeaf { value: _ }) => find_node_pos(current, &key),
                 None => return None
             };
 
@@ -66,7 +87,16 @@ impl<K: Eq + Ord, V : Eq> BTree<K, V> {
                     current = &'a **tree;
                 }
                 Some(TreeLeaf { value: ref value }) => {
-                    return Some(value);
+                    // If the leaf's key equals the key to be found, return the
+                    // value. If the leaf is the most right leaf, also return
+                    // the value, because there is no corresponding key in the
+                    // node (the key is stored in one of the parent nodes).
+                    return if pos == current.used
+                              || current.keys[pos].get_ref() == &key {
+                        Some(value)
+                    } else {
+                        None
+                    }
                 }
                 None => return None
             }
@@ -75,9 +105,37 @@ impl<K: Eq + Ord, V : Eq> BTree<K, V> {
 
     /// Insert a key-value pair into the b-tree. Return true if the key did not
     /// already exist in the tree.
+    ///
+    /// TODO: return true if the key did not already exist. Determine if the
+    /// key is new is not supported at the moment.
     pub fn insert(&mut self, key: K, value: V) -> bool {
-        let (tree, new_key) = insert(self, key, value);
-        new_key
+
+
+        if self.used == self.capacity() {
+            let mut child = BTree::new();
+
+            let mut i = 0;
+
+            while i < BTREE_KEYS_UBOUND + 1 {
+                util::swap(&mut self.nodes[i], &mut child.nodes[i]);
+                i += 1;
+            }
+
+            i = 0;
+
+            while i < BTREE_KEYS_UBOUND {
+                util::swap(&mut self.keys[i], &mut child.keys[i]);
+                i += 1;
+            }
+
+            util::replace(&mut self.nodes[0], Some(TreeNode { value: child }));
+
+            self.used = 0;
+
+            split_child(self, 0);
+        }
+
+        insert_non_full(self, key, value)
     }
 }
 
@@ -87,22 +145,6 @@ fn find_node_pos<K: Eq + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
         match *k {
             Some(ref k) => {
                 if key <= k {
-                    return i;
-                }
-            }
-            None => return tree.used,
-        };
-    }
-
-    tree.used
-}
-
-fn find_leaf_pos<K: Eq, V>(tree: &BTree<K, V>, key: &K) -> uint {
-    for tree.keys.iter().enumerate().advance |(i, k)| {
-        let k : &Option<K> = k;
-        match *k {
-            Some(ref k) => {
-                if key == k {
                     return i;
                 }
             }
@@ -133,186 +175,170 @@ fn find_node<'r, K: Eq + Ord, V>(tree: &'r mut BTree<K, V>,
     }
 }
 
-fn insert<'r, K: Eq + Ord, V : Eq>(tree: &'r mut BTree<K, V>, key: K,
-                                   value: V) -> (&'r mut BTree<K, V>, bool) {
-    let tree = find_node(tree, &key);
+fn split_child<K: Eq + Ord + ToStr, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
+    //println(fmt!("== before split: == \n%s", tree.to_str()));
 
-    match tree.nodes[0] {
-        Some(TreeLeaf { value: _ }) | None => {}
-        Some(TreeNode { value: _ }) =>
-            fail!("unreachable path: tree.nodes[0] == TreeNode"),
+    let t = BTREE_MIN_DEGREE;
+
+    // Make a free slot in the parent node for the to-be-inserted key.
+    // Move the median key from the left node to the parent node. The median
+    // key separates the left and right node.
+    let mut i = tree.used;
+
+    //printf!("i = %?; pos = %?\n", i, pos);
+    //printf!("tree.keys: %?\n", tree.keys);
+    //printf!("tree.nodes: %?\n", tree.nodes);
+
+    while i > pos {
+        tree.nodes.swap(i, i + 1);
+        tree.keys.swap(i - 1, i);
+        i -= 1;
     }
 
-    // Check if the key already exists
-    let pos = tree.keys.iter().position(|x| {
-        match *x {
-            Some(ref k) => key == *k,
-            None => false,
+    //printf!("tree.keys: %?\n", tree.keys);
+    //printf!("tree.nodes: %?\n", tree.nodes);
+
+    let right = match tree.nodes[pos] {
+        Some(TreeNode { value: ref mut left }) => {
+            let mut right = BTree::new();
+
+            let mut i = 0;
+
+            //printf!("left.keys: %?\n", left.keys);
+            //printf!("left.nodes: %?\n", left.nodes);
+
+            //printf!("right.keys: %?\n", right.keys);
+            //printf!("right.nodes: %?\n", right.nodes);
+
+            // Move the larger `t - 1' keys and corresponding `t' nodes from
+            // the left node to the right node.
+            while i < t - 1 {
+                util::swap(&mut right.keys[i], &mut left.keys[i + t]);
+                i += 1;
+            }
+
+            // TODO: verify if this condition is necessary, because it was
+            // mentioned in the algorithm.
+            //if !is_leaf(&mut **left) {
+                i = 0;
+
+                while i < t {
+                    util::swap(&mut right.nodes[i], &mut left.nodes[i + t]);
+                    i += 1;
+                }
+            //}
+
+            assert!(tree.keys[pos].is_none());
+            util::swap(&mut tree.keys[pos], &mut left.keys[t - 1]);
+
+            left.used = t - 1;
+            right.used = t - 1;
+
+            //printf!("left.keys: %?\n", left.keys);
+            //printf!("left.nodes: %?\n", left.nodes);
+
+            //printf!("right.keys: %?\n", right.keys);
+            //printf!("right.nodes: %?\n", right.nodes);
+
+            right
         }
-    });
-
-    // If the key already exists, replace the leaf.
-    if pos.is_some() {
-        util::swap(&mut tree.nodes[pos.unwrap()],
-                   &mut Some(TreeLeaf { value: value }));
-        (tree, false)
-    }
-    // If the node contains fewer than the maximum legal number of
-    // elements, then there is room for the new element.
-    else if tree.used < tree.capacity() {
-        // Determine the position for the new node based on the existing keys.
-        // If None is found, use that position. If the key of the new node is
-        // least than or equal to the tree node, use that position.
-        let pos = tree.keys.iter().position(|x| {
-            match *x {
-                // TODO: If x == None, break
-                None => true,
-                Some(ref k) => key <= *k,
-            }
-        }).unwrap();
-
-        let new_key = insert_key(tree, pos, Some(key));
-        insert_node(tree, pos, Some(TreeLeaf { value: value }));
-        tree.used += 1;
-
-        (tree, new_key)
-    }
-    // Otherwise the node is full, evenly split it into two nodes.
-    else {
-        //debug!("tree used: %?", tree.used);
-        //debug!("tree keys: %?", tree.keys);
-        //debug!("tree nodes: %?", tree.nodes);
-
-        let mut left = BTree::new();
-        let mut right = BTree::new();
-
-        // 1. A single median is chosen from among the leaf's elements and the
-        // new element.
-        assert!(BTREE_DEGREE % 2 == 1);
-        let median = (BTREE_DEGREE - 1) / 2;
-
-        // Determine where the new element should be inserted.
-        let pos = tree.keys.iter().position(|x| {
-            match *x {
-                Some(ref k) => key < *k,
-                None => fail!("unreachable path"),
-            }
-        }).unwrap();
-
-        // 2. Values less than the median are put in the new left node and
-        // values greater than the median are put in the new right node,
-        // with the median acting as a separation value.
-
-        let mut l = 0;
-        let mut r = 0;
-        let mut i = 0;
-
-        let len = tree.keys.len();
-
-        while i < median {
-            if i == pos {
-                l += 1;
-            }
-
-            if i < median - 1 || pos > median {
-                util::swap(&mut left.keys[l], &mut tree.keys[i]);
-            }
-
-            util::swap(&mut left.nodes[l], &mut tree.nodes[i]);
-
-            l += 1;
-            i += 1;
-        }
-
-        while i < len {
-            if i == pos {
-                r += 1;
-            }
-
-            if i > median + 1 || pos < median {
-                util::swap(&mut right.keys[r], &mut tree.keys[i]);
-            }
-
-            util::swap(&mut right.nodes[r], &mut tree.nodes[i]);
-
-            r += 1;
-            i += 1;
-        }
-
-        if pos == median {
-            fail!("todo");
-        } else if pos < median {
-            util::replace(&mut left.keys[pos], Some(key));
-            util::replace(&mut left.nodes[pos],
-                          Some(TreeLeaf { value: value }));
-        } else {
-            util::replace(&mut right.keys[r - median], Some(key));
-            util::replace(&mut right.nodes[r - median],
-                          Some(TreeLeaf { value: value }));
-        }
-
-        left.used = median;
-        right.used = median;
-
-        //debug!("======= after split =========");
-
-        //debug!("left used: %?", left.used);
-        //debug!("left keys: %?", left.keys);
-        //debug!("left nodes: %?", left.nodes);
-
-        //debug!("right used: %?", right.used);
-        //debug!("right keys: %?", right.keys);
-        //debug!("right nodes: %?", right.nodes);
-
-        // 3. The separation value is inserted in the node's parent, which
-        // may cause it to be split, and so on. If the node is the root,
-        // create a new root above this node.
-
-        tree.used = 1;
-        tree.keys.swap(0, median - 1);
-
-        tree.nodes[0] = Some(TreeNode { value: left });
-        tree.nodes[1] = Some(TreeNode { value: right });
-
-        //debug!("tree used: %?", tree.used);
-        //debug!("tree keys: %?", tree.keys);
-        //debug!("tree nodes: %?", tree.nodes);
-
-        (tree, true)
-    }
-}
-
-fn insert_key<K, V>(tree: &mut BTree<K, V>, pos: uint,
-                    key: Option<K>) -> bool {
-    let mut j = tree.used;
-
-    let new_key = match tree.keys[pos] {
-        Some(_) => {
-            while j > pos {
-                tree.keys.swap(j, j - 1);
-                j -= 1;
-            }
-
-            true
-        }
-        None => true,
+        _ => fail!("unreachable path: tree.nodes[pos] should be a TreeNode"),
     };
 
-    util::replace(&mut tree.keys[pos], key);
+    assert!(tree.nodes[pos + 1].is_none());
+    tree.nodes[pos + 1] = Some(TreeNode { value: right });
 
-    new_key
+    tree.used += 1;
+
+    //println(fmt!("tree: %?", tree));
+    //println(fmt!("== after split: == \n%s", tree.to_str()));
 }
 
-fn insert_node<K, V>(tree: &mut BTree<K, V>, pos: uint,
-                     node: Option<TreeItem<K, V>>) {
-    let mut j = tree.used;
-
-    while j > pos {
-        tree.nodes.swap(j, j - 1);
-        j -= 1;
+fn is_leaf<K, V>(tree: &mut BTree<K, V>) -> bool {
+    match tree.nodes[0] {
+        Some(TreeLeaf { value: _ }) => true,
+        Some(TreeNode { value: _ }) | None => false,
     }
+}
 
-    util::replace(&mut tree.nodes[pos], node);
+fn insert_non_full<K: Eq + Ord + ToStr, V: Eq>(tree: &mut BTree<K, V>, key: K,
+                                       value: V) -> bool {
+    //println(fmt!("== before insert_non_full: == \n%s", tree.to_str()));
+
+    if tree.used == 0 || is_leaf(tree) {
+        let pos = find_node_pos(tree, &key);
+
+        let new_key = tree.keys[pos].is_none()
+                      || tree.keys[pos].get_ref() != &key;
+
+        if new_key {
+            //println(fmt!("tree.keys: %?", tree.keys));
+            //println(fmt!("tree.nodes: %?", tree.nodes));
+            //println(fmt!("pos = %?; key = %?", pos, key));
+
+            let mut i = tree.used;
+
+            if i > 0 {
+
+                while i > pos {
+                    tree.keys.swap(i - 1, i);
+                    i -= 1;
+                }
+
+                i = tree.used + 1;
+
+                while i > pos {
+                    tree.nodes.swap(i - 1, i);
+                    i -= 1;
+                }
+            }
+
+            tree.used += 1;
+        }
+
+        util::replace(&mut tree.keys[pos], Some(key));
+        util::replace(&mut tree.nodes[pos], Some(TreeLeaf { value: value }));
+
+        //println(fmt!("== after insert_non_full: == \n%s", tree.to_str()));
+
+        new_key
+    } else {
+        let mut pos = find_node_pos(tree, &key);
+        let mut split = false;
+
+        match tree.nodes[pos] {
+            Some(TreeNode { value: ref mut t }) => {
+                if t.used == t.capacity() {
+                    split = true;
+                }
+            }
+            Some(TreeLeaf { value: _ }) => {
+                fail!("unreachable path: leaf has same depth as a node");
+            }
+            None => fail!("todo")
+        }
+
+        if split {
+            split_child(tree, pos);
+
+            match tree.keys[pos] {
+                Some(ref k) => {
+                    if key > *k {
+                        pos += 1;
+                    }
+                }
+                None => {}
+            }
+        }
+
+        match tree.nodes[pos] {
+            Some(TreeNode { value: ref mut t }) => {
+                insert_non_full(&mut **t, key, value)
+            }
+            Some(TreeLeaf { value: _ }) |
+            None => fail!("unreachable path: leaf has same depth as a node")
+        }
+    }
 }
 
 impl<K, V> Container for BTree<K, V> {
@@ -411,12 +437,11 @@ impl<K: Eq, V: Eq> Eq for TreeItem<K, V> {
 mod test_btree {
 
     use super::*;
-    use std::util;
     use std::rand;
     use std::rand::RngUtil;
 
-    fn tree<K, V>(keys: [Option<K>, ..BTREE_DEGREE - 1],
-                  nodes: [Option<TreeItem<K, V>>, ..BTREE_DEGREE])
+    fn tree<K, V>(keys: [Option<K>, ..BTREE_KEYS_UBOUND],
+                  nodes: [Option<TreeItem<K, V>>, ..BTREE_KEYS_UBOUND + 1])
         -> ~BTree<K, V> {
         ~BTree { used: keys.iter().filter(|x| x.is_some()).len_(),
             keys : keys, nodes: nodes }
@@ -493,7 +518,6 @@ mod test_btree {
         }
     }
 
-    /*
     #[test]
     fn test_basic_insert() {
         let foo = "foo";
@@ -502,15 +526,19 @@ mod test_btree {
 
         let mut t = BTree::new();
         assert!(t.is_empty());
+        assert_eq!(t.used, 0);
 
         assert!(t.insert(42, bar));
         assert!(!t.is_empty());
+        assert_eq!(t.used, 1);
 
         assert!(t.insert(3, baz));
         assert!(!t.is_empty());
+        assert_eq!(t.used, 2);
 
         assert!(t.insert(1, foo));
         assert!(!t.is_empty());
+        assert_eq!(t.used, 3);
 
         assert_eq!(t.find(1).unwrap(), &foo);
         assert_eq!(t.find(3).unwrap(), &baz);
@@ -557,85 +585,130 @@ mod test_btree {
         assert_eq!(t.find(42), None);
     }
 
+    /*
+    // NB The following test will only work when BTREE_MIN_DEGREE = 2;
     #[test]
-    fn test_insert_split_basic() {
-        let mut t = tree([Some(6), Some(17), Some(21), Some(26)],
-                         [leaf(6), leaf(17), leaf(21), leaf(26), None]);
+    fn test_insert_split_root() {
+        assert_eq!(BTREE_MIN_DEGREE, 2);
+        let mut t = tree([Some(4), Some(5), Some(6)],
+                         [leaf(4), leaf(5), leaf(6), None]);
 
-        assert!(t.insert(9, 9));
+        assert!(t.insert(10, 10));
 
         assert_eq!(t.used, 1);
 
-        check_values(t.keys, [Some(17)]);
+        check_values(t.keys, [Some(5)]);
         check_used(t.nodes, [true, true]);
 
-        let l = get_node(t, 0);
-        check_values(l.keys, [Some(6), Some(9)]);
-        check_values(l.nodes, [leaf(6), leaf(9), leaf(17)]);
+        let l = get_node(&*t, 0);
+        check_values(l.keys, [Some(4)]);
+        check_values(l.nodes, [leaf(4), leaf(5)]);
 
-        let r = get_node(t, 1);
-        check_values(r.keys, [Some(21), Some(26)]);
-        check_values(r.nodes, [leaf(21), leaf(26)]);
+        let r = get_node(&*t, 1);
+        check_values(r.keys, [Some(6), Some(10)]);
+        check_values(r.nodes, [leaf(6), leaf(10)]);
+    }
+
+    // NB The following test will only work when BTREE_MIN_DEGREE = 2;
+    #[test]
+    fn test_insert_split_right_leaf() {
+        assert_eq!(BTREE_MIN_DEGREE, 2);
+
+        let l = tree([Some(4), None, None],
+                     [leaf(4), leaf(5), None, None]);
+        let r = tree([Some(6), Some(10), Some(17)],
+                     [leaf(6), leaf(10), leaf(17), None]);
+        let mut t = tree([Some(5), None, None],
+                         [node(l), node(r), None, None]);
+
+        assert!(t.insert(21, 21));
+
+        assert_eq!(t.used, 2);
+
+        check_values(t.keys, [Some(5), Some(10)]);
+        check_used(t.nodes, [true, true, true]);
+
+        let l = get_node(&*t, 0);
+        check_values(l.keys, [Some(4)]);
+        check_values(l.nodes, [leaf(4), leaf(5)]);
+
+        let m = get_node(&*t, 1);
+        check_values(m.keys, [Some(6)]);
+        check_values(m.nodes, [leaf(6), leaf(10)]);
+
+        let r = get_node(&*t, 2);
+        check_values(r.keys, [Some(17), Some(21)]);
+        check_values(r.nodes, [leaf(17), leaf(21)]);
+    }
+
+    // NB The following test will only work when BTREE_MIN_DEGREE = 2;
+    #[test]
+    fn test_insert_split_middle_leaf() {
+        assert_eq!(BTREE_MIN_DEGREE, 2);
+
+        let l = tree([Some(4), None, None],
+                     [leaf(4), leaf(5), None, None]);
+        let m = tree([Some(6), Some(7), Some(8)],
+                     [leaf(6), leaf(7), leaf(8), leaf(10)]);
+        let r = tree([Some(17), Some(21), None],
+                     [leaf(17), leaf(21), None, None]);
+        let mut t = tree([Some(5), Some(10), None],
+                         [node(l), node(m), node(r), None]);
+
+        assert!(t.insert(9, 9));
+
+        assert_eq!(t.used, 3);
+
+        check_values(t.keys, [Some(5), Some(7), Some(10)]);
+        check_used(t.nodes, [true, true, true, true]);
+
+        let t0 = get_node(&*t, 0);
+        check_values(t0.keys, [Some(4)]);
+        check_values(t0.nodes, [leaf(4), leaf(5)]);
+
+        let t1 = get_node(&*t, 1);
+        check_values(t1.keys, [Some(6)]);
+        check_values(t1.nodes, [leaf(6), leaf(7)]);
+
+        let t2 = get_node(&*t, 2);
+        check_values(t2.keys, [Some(8), Some(9)]);
+        check_values(t2.nodes, [leaf(8), leaf(9), leaf(10)]);
+
+        let t3 = get_node(&*t, 3);
+        check_values(t3.keys, [Some(17), Some(21)]);
+        check_values(t3.nodes, [leaf(17), leaf(21)]);
     }
     */
 
     #[test]
-    fn test_insert_split_add_root() {
-        let l = tree([Some(4), Some(5), Some(6), Some(9)],
-                     [leaf(4), leaf(5), leaf(6), leaf(9), None]);
+    fn test_insert_split_random() {
+        let iterations = 100000;
 
-        let r = tree([Some(21), Some(26), Some(33), Some(36)],
-                     [leaf(21), leaf(26), leaf(33), leaf(36), None]);
+        let mut t = BTree::new();
+        let mut rng = rand::IsaacRng::new_seeded([42u8]);
 
+        let mut random_keys = ~[];
+        for std::uint::range(0, iterations) |k| { random_keys.push(k); }
+        rng.shuffle(random_keys);
 
-        let mut t = tree([Some(17), None, None, None],
-                         [node(l), node(r), None, None, None]);
+        let mut i = 0;
 
-        println(fmt!("== tree: == \n%s", t.to_str()));
+        while i < iterations {
+            let key = random_keys[i];
 
-        assert!(t.insert(18, 18));
+            t.insert(key, key);
 
-        println(fmt!("== tree: == \n%s", t.to_str()));
+            //let new_key = t.insert(key, key);
+            //println(fmt!("== tree: == \n%s", t.to_str()));
+            //assert_eq!(new_key, !keys.contains(&key));
 
-        assert_eq!(t.used, 2);
+            //assert_eq!(t.find(key).unwrap(), &key);
 
-        check_values(t.keys, [Some(17), Some(26)]);
-        check_used(t.nodes, [true, true, true]);
+            i += 1;
+        }
 
-        let l = get_node(&*t, 0);
-        check_values(l.keys, [Some(6), Some(9)]);
-        check_values(l.nodes, [leaf(6), leaf(9), leaf(17)]);
-
-        let m = get_node(&*t, 1);
-        check_values(m.keys, [Some(21), Some(26)]);
-        check_values(m.nodes, [leaf(21), leaf(26)]);
-
-        let r = get_node(&*t, 2);
-        check_values(r.keys, [Some(21), Some(26)]);
-        check_values(r.nodes, [leaf(21), leaf(26)]);
+        for random_keys.iter().advance |&k| {
+            assert_eq!(t.find(k).unwrap(), &k);
+        }
     }
-
-    //#[test]
-    //fn test_insert_split_random() {
-    //    let mut t = BTree::new();
-    //    let mut rng = rand::IsaacRng::new_seeded([42u8]);
-    //    let mut keys = ~[];
-
-    //    for 1000.times {
-    //        let i = rng.gen_uint_range(0, 1000);
-    //        keys.push(i);
-    //        debug!("keys: %?", keys);
-    //        assert!(t.insert(i, i));
-    //        println(fmt!("== tree: == \n%s", t.to_str()));
-    //        assert_eq!(t.find(i).unwrap(), &i);
-    //    }
-
-    //    debug!("keys: %?", keys);
-
-    //    println(fmt!("== tree: == \n%s", t.to_str()));
-
-    //    for keys.iter().advance |&i| {
-    //        assert_eq!(t.find(i).unwrap(), &i);
-    //    }
-    //}
 }

@@ -42,7 +42,7 @@ pub enum TreeItem<K, V> {
     TreeLeaf { value: V },
 }
 
-impl<K: Eq + Ord + ToStr, V : Eq> BTree<K, V> {
+impl<K: Eq + Ord, V : Eq> BTree<K, V> {
     pub fn new() -> ~BTree<K, V> {
         // TODO: once https://github.com/mozilla/rust/issues/5244 is fixed,
         // use the following statement:
@@ -175,7 +175,7 @@ fn find_node<'r, K: Eq + Ord, V>(tree: &'r mut BTree<K, V>,
     }
 }
 
-fn split_child<K: Eq + Ord + ToStr, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
+fn split_child<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
     //println(fmt!("== before split: == \n%s", tree.to_str()));
 
     let t = BTREE_MIN_DEGREE;
@@ -261,7 +261,7 @@ fn is_leaf<K, V>(tree: &mut BTree<K, V>) -> bool {
     }
 }
 
-fn insert_non_full<K: Eq + Ord + ToStr, V: Eq>(tree: &mut BTree<K, V>, key: K,
+fn insert_non_full<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, key: K,
                                        value: V) -> bool {
     //println(fmt!("== before insert_non_full: == \n%s", tree.to_str()));
 

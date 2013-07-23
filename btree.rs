@@ -236,25 +236,20 @@ fn split_child<K: Num + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
 
             let mut i = 0;
 
-            // Move the larger `t - 1' keys and corresponding `t' nodes from
-            // the left node to the right node.
+            // Move the larger `t - 1' keys from the left to the right node.
             while i < t - 1 {
                 util::swap(&mut right.keys[i], &mut left.keys[i + t]);
                 i += 1;
             }
 
-            // TODO: verify if this condition is necessary, because it was
-            // mentioned in the algorithm.
-            //if !is_leaf(&mut **left) {
-                i = 0;
+            i = 0;
 
-                while i < t {
-                    util::swap(&mut right.nodes[i], &mut left.nodes[i + t]);
-                    i += 1;
-                }
-            //}
+            // Move the larger `t' nodes from the left to the right node.
+            while i < t {
+                util::swap(&mut right.nodes[i], &mut left.nodes[i + t]);
+                i += 1;
+            }
 
-            //assert!(tree.keys[pos].is_none());
             util::swap(&mut tree.keys[pos], &mut left.keys[t - 1]);
 
             left.used = t - 1;
@@ -265,9 +260,8 @@ fn split_child<K: Num + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
         _ => fail!("unreachable path: tree.nodes[pos] should be a TreeNode"),
     };
 
-    //assert!(tree.nodes[pos + 1].is_none());
+    // Insert the new right node into the parent
     tree.nodes[pos + 1] = Some(TreeNode { value: right });
-
     tree.used += 1;
 }
 

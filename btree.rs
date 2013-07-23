@@ -69,6 +69,7 @@ impl<K: Eq + Ord, V : Eq> BTree<K, V> {
     }
 
     /// Return the number of keys that can be stored in the b-tree node.
+    #[inline]
     pub fn capacity(&self) -> uint { BTREE_KEYS_UBOUND }
 
     /// Return a reference to the value corresponding to the key.
@@ -109,8 +110,6 @@ impl<K: Eq + Ord, V : Eq> BTree<K, V> {
     /// TODO: return true if the key did not already exist. Determine if the
     /// key is new is not supported at the moment.
     pub fn insert(&mut self, key: K, value: V) -> bool {
-
-
         if self.used == self.capacity() {
             let mut child = BTree::new();
 
@@ -176,8 +175,6 @@ fn find_node<'r, K: Eq + Ord, V>(tree: &'r mut BTree<K, V>,
 }
 
 fn split_child<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
-    //println(fmt!("== before split: == \n%s", tree.to_str()));
-
     let t = BTREE_MIN_DEGREE;
 
     // Make a free slot in the parent node for the to-be-inserted key.
@@ -185,30 +182,17 @@ fn split_child<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
     // key separates the left and right node.
     let mut i = tree.used;
 
-    //printf!("i = %?; pos = %?\n", i, pos);
-    //printf!("tree.keys: %?\n", tree.keys);
-    //printf!("tree.nodes: %?\n", tree.nodes);
-
     while i > pos {
         tree.nodes.swap(i, i + 1);
         tree.keys.swap(i - 1, i);
         i -= 1;
     }
 
-    //printf!("tree.keys: %?\n", tree.keys);
-    //printf!("tree.nodes: %?\n", tree.nodes);
-
     let right = match tree.nodes[pos] {
         Some(TreeNode { value: ref mut left }) => {
             let mut right = BTree::new();
 
             let mut i = 0;
-
-            //printf!("left.keys: %?\n", left.keys);
-            //printf!("left.nodes: %?\n", left.nodes);
-
-            //printf!("right.keys: %?\n", right.keys);
-            //printf!("right.nodes: %?\n", right.nodes);
 
             // Move the larger `t - 1' keys and corresponding `t' nodes from
             // the left node to the right node.
@@ -228,30 +212,21 @@ fn split_child<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
                 }
             //}
 
-            assert!(tree.keys[pos].is_none());
+            //assert!(tree.keys[pos].is_none());
             util::swap(&mut tree.keys[pos], &mut left.keys[t - 1]);
 
             left.used = t - 1;
             right.used = t - 1;
-
-            //printf!("left.keys: %?\n", left.keys);
-            //printf!("left.nodes: %?\n", left.nodes);
-
-            //printf!("right.keys: %?\n", right.keys);
-            //printf!("right.nodes: %?\n", right.nodes);
 
             right
         }
         _ => fail!("unreachable path: tree.nodes[pos] should be a TreeNode"),
     };
 
-    assert!(tree.nodes[pos + 1].is_none());
+    //assert!(tree.nodes[pos + 1].is_none());
     tree.nodes[pos + 1] = Some(TreeNode { value: right });
 
     tree.used += 1;
-
-    //println(fmt!("tree: %?", tree));
-    //println(fmt!("== after split: == \n%s", tree.to_str()));
 }
 
 fn is_leaf<K, V>(tree: &mut BTree<K, V>) -> bool {
@@ -263,8 +238,6 @@ fn is_leaf<K, V>(tree: &mut BTree<K, V>) -> bool {
 
 fn insert_non_full<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, key: K,
                                        value: V) -> bool {
-    //println(fmt!("== before insert_non_full: == \n%s", tree.to_str()));
-
     if tree.used == 0 || is_leaf(tree) {
         let pos = find_node_pos(tree, &key);
 
@@ -272,10 +245,6 @@ fn insert_non_full<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, key: K,
                       || tree.keys[pos].get_ref() != &key;
 
         if new_key {
-            //println(fmt!("tree.keys: %?", tree.keys));
-            //println(fmt!("tree.nodes: %?", tree.nodes));
-            //println(fmt!("pos = %?; key = %?", pos, key));
-
             let mut i = tree.used;
 
             if i > 0 {
@@ -298,8 +267,6 @@ fn insert_non_full<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, key: K,
 
         util::replace(&mut tree.keys[pos], Some(key));
         util::replace(&mut tree.nodes[pos], Some(TreeLeaf { value: value }));
-
-        //println(fmt!("== after insert_non_full: == \n%s", tree.to_str()));
 
         new_key
     } else {
@@ -689,7 +656,7 @@ mod test_btree {
 
         let mut random_keys = ~[];
         for std::uint::range(0, iterations) |k| { random_keys.push(k); }
-        rng.shuffle(random_keys);
+        rng.shuffle_mut(random_keys);
 
         let mut i = 0;
 

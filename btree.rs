@@ -28,6 +28,7 @@ use std::util;
 /// The fixed integer `t` (where `t >= 2`) is called the *minimum degree* of
 /// the B-tree.
 pub static BTREE_MIN_DEGREE : uint = 20;
+//pub static BTREE_MIN_DEGREE : uint = 2;
 pub static BTREE_KEYS_LBOUND : uint = BTREE_MIN_DEGREE - 1;
 pub static BTREE_KEYS_UBOUND : uint = 2 * BTREE_MIN_DEGREE - 1;
 
@@ -42,7 +43,7 @@ pub enum TreeItem<K, V> {
     TreeLeaf { value: V },
 }
 
-impl<K: Eq + Ord, V : Eq> BTree<K, V> {
+impl<K: Num + Ord, V : Eq> BTree<K, V> {
     pub fn new() -> ~BTree<K, V> {
         // TODO: once https://github.com/mozilla/rust/issues/5244 is fixed,
         // use the following statement:
@@ -138,7 +139,48 @@ impl<K: Eq + Ord, V : Eq> BTree<K, V> {
     }
 }
 
-fn find_node_pos<K: Eq + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
+pub fn find_node_pos<K: Num + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
+    // NB Find the position using binary search on the keys in this node. The
+    // following code performs the binary search, but is results in slower
+    // run-time. Binary search on the keys should be faster than linear search,
+    // but perhaps cache misses explain why the binary search performs poor.
+    /*
+    if tree.used == 0 {
+        return 0;
+    }
+
+    let mut l = 0;
+    let mut u = tree.used - 1;
+
+    loop {
+        if l == u {
+            if key <= tree.keys[l].get_ref() {
+                return l;
+            }
+            else {
+                return l + 1;
+            }
+        }
+
+        let i = (l + u) / 2;
+
+        let cmp_key = tree.keys[i].get_ref();
+
+        if key < cmp_key {
+            if i == 0 {
+                return 0;
+            }
+
+            u = if i - 1 < l { l } else { i - 1 };
+        } else if key > cmp_key {
+            l = i + 1;
+        } else {
+            return i;
+        }
+    }
+    */
+
+    // Find the position using linear search on the keys in this node.
     for tree.keys.iter().enumerate().advance |(i, k)| {
         let k : &Option<K> = k;
         match *k {
@@ -154,8 +196,8 @@ fn find_node_pos<K: Eq + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
     tree.used
 }
 
-fn find_node<'r, K: Eq + Ord, V>(tree: &'r mut BTree<K, V>,
-                                 key: &K) -> &'r mut BTree<K, V> {
+fn find_node<'r, K: Num + Ord, V>(tree: &'r mut BTree<K, V>,
+                                  key: &K) -> &'r mut BTree<K, V> {
     // TODO make iterative if the borrow checker allows it
     match tree.nodes[0] {
         Some(TreeNode { value: _ }) => {
@@ -174,7 +216,7 @@ fn find_node<'r, K: Eq + Ord, V>(tree: &'r mut BTree<K, V>,
     }
 }
 
-fn split_child<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
+fn split_child<K: Num + Ord, V: Eq>(tree: &mut BTree<K, V>, pos: uint) {
     let t = BTREE_MIN_DEGREE;
 
     // Make a free slot in the parent node for the to-be-inserted key.
@@ -236,8 +278,8 @@ fn is_leaf<K, V>(tree: &mut BTree<K, V>) -> bool {
     }
 }
 
-fn insert_non_full<K: Eq + Ord, V: Eq>(tree: &mut BTree<K, V>, key: K,
-                                       value: V) -> bool {
+fn insert_non_full<K: Num + Ord, V: Eq>(tree: &mut BTree<K, V>, key: K,
+                                        value: V) -> bool {
     if tree.used == 0 || is_leaf(tree) {
         let pos = find_node_pos(tree, &key);
 
@@ -365,7 +407,7 @@ fn to_str<K: ToStr, V>(tree: &BTree<K, V>, indent: uint) -> ~str {
     buf.connect("\n")
 }
 
-impl<K: Eq, V: Eq> Eq for BTree<K, V> {
+impl<K: Num, V: Eq> Eq for BTree<K, V> {
     #[inline]
     fn eq(&self, other: &BTree<K, V>) -> bool {
         self.used == other.used
@@ -377,7 +419,7 @@ impl<K: Eq, V: Eq> Eq for BTree<K, V> {
     fn ne(&self, other: &BTree<K, V>) -> bool { !(*self).eq(other) }
 }
 
-impl<K: Eq, V: Eq> Eq for TreeItem<K, V> {
+impl<K: Num, V: Eq> Eq for TreeItem<K, V> {
     #[inline]
     fn eq(&self, other: &TreeItem<K, V>) -> bool {
         match *self {

@@ -139,7 +139,7 @@ impl<K: Num + Ord, V : Eq> BTree<K, V> {
     }
 }
 
-pub fn find_node_pos<K: Num + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
+fn find_node_pos<K: Num + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
     // NB Find the position using binary search on the keys in this node. The
     // following code performs the binary search, but is results in slower
     // run-time. Binary search on the keys should be faster than linear search,
@@ -196,23 +196,43 @@ pub fn find_node_pos<K: Num + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
     tree.used
 }
 
-fn find_node<'r, K: Num + Ord, V>(tree: &'r mut BTree<K, V>,
-                                  key: &K) -> &'r mut BTree<K, V> {
+fn find_node<'r, K: Num + Ord, V>(tree: &'r BTree<K, V>,
+                                  key: &K) -> &'r BTree<K, V> {
     // TODO make iterative if the borrow checker allows it
-    match tree.nodes[0] {
-        Some(TreeNode { value: _ }) => {
-            let pos = find_node_pos(tree, key);
+    //match tree.nodes[0] {
+    //    Some(TreeNode { value: _ }) => {
+    //        let pos = find_node_pos(tree, key);
 
-            match tree.nodes[pos] {
-                Some(TreeNode { value: ref mut tree }) => {
-                    return find_node(&mut **tree, key);
+    //        match tree.nodes[pos] {
+    //            Some(TreeNode { value: ref mut tree }) => {
+    //                return find_node(&mut **tree, key);
+    //            }
+    //            Some(TreeLeaf { value: _ }) |
+    //            None => fail!("tree.nodes[pos] != TreeNode"),
+    //        }
+    //    }
+    //    Some(TreeLeaf { value: _ }) |
+    //    None => tree,
+    //}
+    let mut current = tree;
+
+    loop {
+        match current.nodes[0] {
+            Some(TreeNode { value: _ }) => {
+                let pos = find_node_pos(tree, key);
+
+                match tree.nodes[pos] {
+                    Some(TreeNode { value: ref tree }) => {
+                        //return find_node(&mut **tree, key);
+                        current = &**tree;
+                    }
+                    Some(TreeLeaf { value: _ }) |
+                    None => fail!("tree.nodes[pos] != TreeNode"),
                 }
-                Some(TreeLeaf { value: _ }) |
-                None => fail!("tree.nodes[pos] != TreeNode"),
             }
+            Some(TreeLeaf { value: _ }) |
+            None => return tree,
         }
-        Some(TreeLeaf { value: _ }) |
-        None => tree,
     }
 }
 

@@ -11,7 +11,7 @@ RUSTFLAGS := -O -L.
 
 lib%.so: %.rs
 	rm -f lib$*-*.so
-	$(RUSTC) $(RUSTFLAGS) --lib -o $@ $<
+	$(RUSTC) $(RUSTFLAGS) --lib -o $*.so $<
 	touch $@
 
 %: %.rs

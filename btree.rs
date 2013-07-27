@@ -20,7 +20,13 @@
 //! assert_eq!(t.find(42).unwrap(), &bar);
 //! ~~~
 
+extern mod extra;
+
 use std::util;
+use std::rand;
+use std::rand::RngUtil;
+
+use extra::test::BenchHarness;
 
 /// The number of keys a node can contain is between a lower and upper bound.
 /// Every node other than the root must have at least `t - 1` keys and `t`
@@ -141,7 +147,7 @@ impl<K: Num + Ord, V : Eq> BTree<K, V> {
 
 fn find_node_pos<K: Num + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
     // NB Find the position using binary search on the keys in this node. The
-    // following code performs the binary search, but is results in slower
+    // following code performs the binary search, but it results in slower
     // run-time. Binary search on the keys should be faster than linear search,
     // but perhaps cache misses explain why the binary search performs poor.
     /*
@@ -456,6 +462,25 @@ impl<K: Num, V: Eq> Eq for TreeItem<K, V> {
     fn ne(&self, other: &TreeItem<K, V>) -> bool { !(*self).eq(other) }
 }
 
+#[bench]
+fn bench_insert_random(bh: &mut BenchHarness) {
+    let iterations = 1000;
+
+    let mut rng = rand::IsaacRng::new_seeded([42u8]);
+
+    let mut random_keys = ~[];
+    for std::uint::range(0, iterations) |k| { random_keys.push(k); }
+    rng.shuffle_mut(random_keys);
+
+    do bh.iter {
+        let mut t = BTree::new();
+
+        for random_keys.iter().advance |&key| {
+            t.insert(key, key);
+        }
+    }
+}
+
 #[cfg(test)]
 mod test_btree {
 
@@ -714,20 +739,8 @@ mod test_btree {
         for std::uint::range(0, iterations) |k| { random_keys.push(k); }
         rng.shuffle_mut(random_keys);
 
-        let mut i = 0;
-
-        while i < iterations {
-            let key = random_keys[i];
-
+        for random_keys.iter().advance |&key| {
             t.insert(key, key);
-
-            //let new_key = t.insert(key, key);
-            //println(fmt!("== tree: == \n%s", t.to_str()));
-            //assert_eq!(new_key, !keys.contains(&key));
-
-            //assert_eq!(t.find(key).unwrap(), &key);
-
-            i += 1;
         }
 
         for random_keys.iter().advance |&k| {

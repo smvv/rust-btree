@@ -20,12 +20,20 @@
 //! assert_eq!(t.find(42).unwrap(), &bar);
 //! ~~~
 
+#[feature(struct_variant)];
+#[feature(globs)];
+
 extern mod extra;
 
 use std::util;
-use std::rand;
-use std::rand::RngUtil;
 
+#[cfg(test)]
+use std::rand;
+#[cfg(test)]
+use std::rand::RngUtil;
+#[cfg(test)]
+use std::iter::range;
+#[cfg(test)]
 use extra::test::BenchHarness;
 
 /// The number of keys a node can contain is between a lower and upper bound.
@@ -187,7 +195,7 @@ fn find_node_pos<K: Num + Ord, V>(tree: &BTree<K, V>, key: &K) -> uint {
     */
 
     // Find the position using linear search on the keys in this node.
-    for tree.keys.iter().enumerate().advance |(i, k)| {
+    for (i, k) in tree.keys.iter().enumerate() {
         let k : &Option<K> = k;
         match *k {
             Some(ref k) => {
@@ -383,7 +391,7 @@ impl<K, V> Container for BTree<K, V> {
 impl<K, V> Mutable for BTree<K, V> {
     /// Clear the b-tree, removing all nodes.
     fn clear(&mut self) {
-        for self.nodes.mut_iter().advance |node| {
+        for node in self.nodes.mut_iter() {
             *node = None;
         }
 
@@ -396,14 +404,14 @@ impl<K: ToStr, V> ToStr for BTree<K, V> {
 }
 
 fn to_str<K: ToStr, V>(tree: &BTree<K, V>, indent: uint) -> ~str {
-    let buf : ~[~str] = tree.nodes.iter().enumerate().transform(|(i, x)| {
+    let buf : ~[~str] = tree.nodes.iter().enumerate().map(|(i, x)| {
         if i < tree.used {
             let key = match tree.keys[i] {
                 Some(ref key) => key,
                 None => fail!("unreachable path"),
             };
 
-            fmt!("%s%s", "\t".repeat(indent), match *x {
+            "\t".repeat(indent) + match *x {
                 Some(TreeNode { value: ref tree }) => {
                     ~"Node(key=" + key.to_str() + ")\n"
                     + to_str::<K, V>(&**tree, indent + 1)
@@ -412,15 +420,15 @@ fn to_str<K: ToStr, V>(tree: &BTree<K, V>, indent: uint) -> ~str {
                     ~"Leaf(key=" + key.to_str() + ")"
                 }
                 None => ~"None",
-            })
+            }
         } else {
-            fmt!("%s%s", "\t".repeat(indent), match *x {
+            "\t".repeat(indent) + match *x {
                 Some(TreeNode { value: ref tree }) => {
                     ~"Node(key=None)\n" + to_str::<K, V>(&**tree, indent + 1)
                 }
                 Some(TreeLeaf { value: _ }) => ~"Leaf(key=None)",
                 None => ~"None",
-            })
+            }
         }
     }).collect();
 
@@ -469,13 +477,13 @@ fn bench_insert_random(bh: &mut BenchHarness) {
     let mut rng = rand::IsaacRng::new_seeded([42u8]);
 
     let mut random_keys = ~[];
-    for std::uint::range(0, iterations) |k| { random_keys.push(k); }
+    for k in range(0, iterations) { random_keys.push(k); }
     rng.shuffle_mut(random_keys);
 
     do bh.iter {
         let mut t = BTree::new();
 
-        for random_keys.iter().advance |&key| {
+        for &key in random_keys.iter() {
             t.insert(key, key);
         }
     }
@@ -491,7 +499,7 @@ mod test_btree {
     fn tree<K, V>(keys: [Option<K>, ..BTREE_KEYS_UBOUND],
                   nodes: [Option<TreeItem<K, V>>, ..BTREE_KEYS_UBOUND + 1])
         -> ~BTree<K, V> {
-        ~BTree { used: keys.iter().filter(|x| x.is_some()).len_(),
+        ~BTree { used: keys.iter().filter(|x| x.is_some()).len(),
             keys : keys, nodes: nodes }
     }
 
@@ -736,14 +744,14 @@ mod test_btree {
         let mut rng = rand::IsaacRng::new_seeded([42u8]);
 
         let mut random_keys = ~[];
-        for std::uint::range(0, iterations) |k| { random_keys.push(k); }
+        for k in range(0, iterations) { random_keys.push(k); }
         rng.shuffle_mut(random_keys);
 
-        for random_keys.iter().advance |&key| {
+        for &key in random_keys.iter() {
             t.insert(key, key);
         }
 
-        for random_keys.iter().advance |&k| {
+        for &k in random_keys.iter() {
             assert_eq!(t.find(k).unwrap(), &k);
         }
     }

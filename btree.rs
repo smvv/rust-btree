@@ -23,6 +23,8 @@
 #[feature(struct_variant)];
 #[feature(globs)];
 
+#[link(name="btree")];
+
 extern mod extra;
 
 use std::util;

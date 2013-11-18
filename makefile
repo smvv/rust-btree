@@ -8,6 +8,9 @@ test: RUSTFLAGS += --test
 clean:
 	rm -f libbtree.so libbtree-*.so btree_bench
 
+docs:
+	rustdoc -o doc/ btree.rs
+
 RUSTC := rustc
 RUSTFLAGS := -O -L.
 

@@ -646,6 +646,35 @@ mod test_btree {
         assert_eq!(t.find(42), None);
     }
 
+    #[test]
+    fn test_insert_new_key() {
+        let foo = "foo";
+        let bar = "bar";
+
+        let mut t = BTree::new();
+        assert!(t.is_empty());
+        assert_eq!(t.used, 0);
+
+        assert!(t.insert(42, foo));
+        assert!(!t.is_empty());
+        assert_eq!(t.used, 1);
+        assert_eq!(t.find(42).unwrap(), &foo);
+
+        assert!(!t.insert(42, bar));
+        assert!(!t.is_empty());
+        assert_eq!(t.used, 1);
+
+        assert_eq!(t.find(42).unwrap(), &bar);
+
+        t.clear();
+        assert!(t.is_empty());
+
+        assert!(t.insert(42, foo));
+        assert!(!t.is_empty());
+        assert_eq!(t.used, 1);
+        assert_eq!(t.find(42).unwrap(), &foo);
+    }
+
     /*
     // NB The following test will only work when BTREE_MIN_DEGREE = 2;
     #[test]

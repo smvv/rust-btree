@@ -391,6 +391,10 @@ impl<K, V> Container for BTree<K, V> {
 impl<K, V> Mutable for BTree<K, V> {
     /// Clear the b-tree, removing all nodes.
     fn clear(&mut self) {
+        for key in self.keys.mut_iter() {
+            *key = None;
+        }
+
         for node in self.nodes.mut_iter() {
             *node = None;
         }

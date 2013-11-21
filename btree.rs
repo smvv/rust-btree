@@ -30,9 +30,7 @@ extern mod extra;
 use std::util;
 
 #[cfg(test)]
-use std::rand;
-#[cfg(test)]
-use std::rand::RngUtil;
+use std::rand::{Rng, IsaacRng, SeedableRng};
 #[cfg(test)]
 use std::iter::range;
 #[cfg(test)]
@@ -476,7 +474,8 @@ impl<K: Num, V: Eq> Eq for TreeItem<K, V> {
 fn bench_insert_random(bh: &mut BenchHarness) {
     let iterations = 1000;
 
-    let mut rng = rand::IsaacRng::new_seeded([42u8]);
+    let mut rng = IsaacRng::new();
+    rng.reseed([42u32]);
 
     let mut random_keys = ~[];
     for k in range(0, iterations) { random_keys.push(k); }
@@ -495,8 +494,8 @@ fn bench_insert_random(bh: &mut BenchHarness) {
 mod test_btree {
 
     use super::*;
-    use std::rand;
-    use std::rand::RngUtil;
+    use std::rand::{Rng, IsaacRng, SeedableRng};
+    use std::iter::range;
 
     fn tree<K, V>(keys: [Option<K>, ..BTREE_KEYS_UBOUND],
                   nodes: [Option<TreeItem<K, V>>, ..BTREE_KEYS_UBOUND + 1])
@@ -546,8 +545,8 @@ mod test_btree {
 
             while i < len {
                 if list[i].is_some() != used[i] {
-                    fail!(fmt!("list[%u] = %? is not in use as used[%u] = %?",
-                               i, list[i], i, used[i]));
+                    fail!(format!("list[{}] = {:?} is not in use. used[{}] = {}",
+                                  i, list[i], i, used[i]));
                 }
 
                 i += 1;
@@ -557,8 +556,8 @@ mod test_btree {
 
             while i < len {
                 if list[i].is_some() {
-                    fail!(fmt!("list[%u] = %? is used but it should be unused",
-                               i, list[i]));
+                    fail!(format!("list[{}] = {:?} is used but should be unused",
+                                  i, list[i]));
                 }
 
                 i += 1;
@@ -743,7 +742,8 @@ mod test_btree {
         let iterations = 100000;
 
         let mut t = BTree::new();
-        let mut rng = rand::IsaacRng::new_seeded([42u8]);
+        let mut rng = IsaacRng::new();
+        rng.reseed([42u32]);
 
         let mut random_keys = ~[];
         for k in range(0, iterations) { random_keys.push(k); }

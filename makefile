@@ -1,9 +1,8 @@
 all: libbtree.so btree_bench
+all: btree
 
 btree_bench: libbtree.so
-
-test: all
-test: RUSTFLAGS += --test
+btree: RUSTFLAGS += --test
 
 clean:
 	rm -f libbtree.so libbtree-*.so btree_bench
